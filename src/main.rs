@@ -8,6 +8,7 @@ extern crate clap;
 #[macro_use]
 extern crate error_chain;
 extern crate toml;
+extern crate regex;
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -16,8 +17,30 @@ use std::io;
 
 use clap::{Arg, App};
 use toml::Value;
+use regex::Regex;
 
 error_chain!{}
+
+fn _regex_query(needle: &str, expr: &str) -> i32 {
+    // Check if this is a sed-style query matching `/expr/repl/`.
+    let sed_expr = Regex::new("/(.*)/(.*)/").unwrap();
+    if let Some(sed_captures) = sed_expr.captures(expr) {
+        println!("{}, {}",
+                 sed_captures.get(1).unwrap().as_str(),
+                 sed_captures.get(2).unwrap().as_str());
+    }
+
+    // Otherwise, just filter captures.
+    let expr = Regex::new(expr)
+        .expect(&format!("Couldn't build a regular expression from {}", expr));
+
+    println!("{}", needle);
+    for capture in expr.captures_iter(needle) {
+        println!("{}", capture.get(0).unwrap().as_str());
+    }
+
+    0
+}
 
 fn main() {
     let matches = App::new(crate_name!())
@@ -29,6 +52,12 @@ fn main() {
                                .long("file")
                                .value_name("TOML_FILE")
                                .help("TOML file to read")
+                               .takes_value(true))
+                          .arg(Arg::with_name("regex")
+                               .short("r")
+                               .long("regex")
+                               .value_name("REGULAR_EXPRESSION")
+                               .help("Regular expression to apply.  Use `/query/replacement/` to change values inline, or just `expr` to filter your query.")
                                .takes_value(true))
                           .arg(Arg::with_name("PATTERN")
                                .help("Field to read from the TOML file")
@@ -71,10 +100,20 @@ fn main() {
             }
         });
 
+    let re = matches.value_of("regex");
+
     exit(match x {
         Some(needle) => {
-            println!("{}", format!("{}", needle).trim_matches('"'));
-            0
+            let needle = format!("{}", needle);
+            let needle = needle.trim_matches('"');
+
+            match re {
+                Some(expr) => _regex_query(needle, expr),
+                None => {
+                    println!("{}", needle);
+                    0
+                }
+            }
         }
         None => {
             writeln!(io::stderr(), "{} not found!", pattern).unwrap();

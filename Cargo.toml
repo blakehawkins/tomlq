@@ -10,3 +10,4 @@ description = "A tool for obtaining information from a TOML file on the command 
 toml = "0.4"
 clap = "2.26"
 error-chain = "0.10"
+regex = "1"
